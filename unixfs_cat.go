@@ -10,6 +10,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/ipfs/go-blockservice"
@@ -336,11 +337,24 @@ func main() {
 			os.Remove(args.OutputFileName)
 		} else {
 			log.Printf("Car file %v has been written.", args.OutputFileName)
-			_res, err := json.Marshal(resultSet.Logger)
+			_res, err := json.MarshalIndent(resultSet.Logger, "", "    ")
 			if err != nil {
 				log.Fatal("Error:", err)
 			}
-			fmt.Println(string(_res))
+
+			jsonFileName := strings.TrimSuffix(args.OutputFileName, filepath.Ext(args.OutputFileName)) + ".json"
+			jsonFile, err := os.Create(jsonFileName)
+
+			if err != nil {
+				log.Fatal("Error:", err)
+			}
+			defer jsonFile.Close()
+
+			_, err = jsonFile.Write(_res)
+			if err != nil {
+				log.Fatal("Error:", err)
+			}
+			log.Printf("Json file %v has been written.", jsonFileName)
 			// unpackCar()
 		}
 	}
