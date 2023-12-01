@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -178,31 +179,75 @@ var fileToIPLDNode = func(file os.FileInfo, path string) (*merkledag.ProtoNode, 
 	return fileProtoNode, nil
 }
 
-// func unpackCar() error {
-// 	log.Println("Reading car file")
-// 	carFile, err := os.Open("output.car")
-// 	if err != nil {
-// 		return fmt.Errorf("failed to open car file: %w", err)
-// 	}
-// 	defer carFile.Close()
+func unpackCar(file string, allCids []cid.Cid) error {
+	carFile, err := os.Open(file)
+	if err != nil {
+		fmt.Println("Error opening .car file:", err)
+		return err
+	}
+	defer carFile.Close()
 
-// 	// Create a Blockstore to store the blocks
-// 	// bs := blockstore.NewBlockstore(datastore.NewMapDatastore())
+	// Create a CAR reader
+	carReader, err := car.NewCarReader(carFile)
+	if err != nil {
+		fmt.Println("Error reading .car file:", err)
+		return err
+	}
 
-// 	// Create a CAR file reader
-// 	carReader, err := car.NewCarReader(carFile)
-// 	if err != nil {
-// 		return fmt.Errorf("failed to create car reader: %w", err)
-// 	}
+	// Iterate over the blocks in the CAR file
+	// for {
+	// 	block, err := carReader.Next()
+	// 	if err != nil {
+	// 		break
+	// 	}
 
-// 	// Iterate through the blocks in the CAR file
+	// Process the block (for example, print the CID)
+	// fmt.Println("Found CID:", block.Cid())
+	// You can also access block.RawData() to get the raw bytes
+	// }
 
-// 	for _, _r := range carReader.Header.Roots {
-// 		log.Println("Car roots:", _r)
-// 	}
+	if err != nil && err != io.EOF {
+		fmt.Println("Error iterating over .car file blocks:", err)
+		return err
+	}
+	fmt.Println("Comparing CIDs")
 
-// 	return nil
-// }
+	_comp := map[string]interface{}{}
+
+	_carCids := []string{}
+	// Check the root of the car file
+	fmt.Println(carReader.Header.Roots)
+
+	for {
+		block, err := carReader.Next()
+		if err != nil {
+			break
+		}
+		_carCids = append(_carCids, block.Cid().String())
+		// fmt.Println(block.Cid().String(), _c.String())
+		// if block.Cid().String() == _c.String() {
+		// 	fmt.Println("Equals")
+		// 	_comp[_c.String()] = block.Cid()
+		// }
+	}
+	for _, _c := range allCids {
+		_comp[_c.String()] = "ph"
+		for _, _cc := range _carCids {
+			if _cc == _c.String() {
+				_comp[_c.String()] = _cc
+			}
+		}
+	}
+
+	// find empty missing blocks
+	for _k, _v := range _comp {
+		if _v == "ph" {
+			fmt.Println("Missing block in car file", _k)
+		}
+	}
+
+	return nil
+}
 
 type Args struct {
 	OutputFileName string
@@ -213,8 +258,14 @@ type ResultSet struct {
 	Cids            []cid.Cid
 	Nodes           []*merkledag.ProtoNode
 	UnderlyingFiles []ipld.Node
-	Logger          []Logger
+	// ParentNode      ParentNode
 }
+
+type ParentNode struct {
+	Cid   string   `json:"cid"`
+	Nodes []Logger `json:"nodes"`
+}
+
 type Logger struct {
 	FolderPath string  `json:"folder_path"`
 	Cid        string  `json:"cid"`
@@ -243,6 +294,8 @@ func main() {
 	}
 
 	var resultSet ResultSet
+	var _parentNode ParentNode
+	var nodesWIthName []NodeWithName
 
 	for _, folder := range folders {
 		if !folder.IsDir() {
@@ -286,9 +339,13 @@ func main() {
 		if len(result) > 0 {
 			resultSet.Cids = append(resultSet.Cids, result[0].Cid())
 			resultSet.Nodes = append(resultSet.Nodes, result[0])
+			nodesWIthName = append(nodesWIthName, NodeWithName{
+				node: result[0],
+				name: folder.Name(),
+			})
 		}
 
-		resultSet.Logger = append(resultSet.Logger, Logger{
+		_parentNode.Nodes = append(_parentNode.Nodes, Logger{
 			FolderPath: folderPath,
 			Cid:        result[0].Cid().String(),
 			Chunks:     chunks,
@@ -296,6 +353,14 @@ func main() {
 
 		// log.Println("Concatenated result for folder:", folder.Name(), result[0])
 	}
+
+	pdb := ParentDagBuilder{maxLinks: helpers.DefaultLinksPerBlock}
+	parentNode, err := pdb.ConstructParentDirectory(nodesWIthName...)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	_parentNode.Cid = parentNode.Cid().String()
 
 	if len(resultSet.Cids) > 0 {
 		carFile, err := os.Create(args.OutputFileName)
@@ -331,13 +396,26 @@ func main() {
 			}
 		}
 
-		err = car.WriteCar(context.Background(), dagService, resultSet.Cids, carFile)
+		// Add parentNode to blockstore
+		parentBlock, err := blocks.NewBlockWithCid(parentNode.RawData(), parentNode.Cid())
+		if err != nil {
+			log.Fatal(err)
+		}
+		err = blockstore.Put(context.Background(), parentBlock)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		// Write parentNode's CID to resultSet.Cids
+		// resultSet.Cids = append(resultSet.Cids, parentNode.Cid())
+
+		err = car.WriteCar(context.Background(), dagService, []cid.Cid{parentNode.Cid()}, carFile) //, resultSet.Cids, carFile)
 		if err != nil {
 			log.Println("Error: ", err.Error())
 			os.Remove(args.OutputFileName)
 		} else {
 			log.Printf("Car file %v has been written.", args.OutputFileName)
-			_res, err := json.MarshalIndent(resultSet.Logger, "", "    ")
+			_res, err := json.MarshalIndent(_parentNode, "", "    ")
 			if err != nil {
 				log.Fatal("Error:", err)
 			}
@@ -355,7 +433,6 @@ func main() {
 				log.Fatal("Error:", err)
 			}
 			log.Printf("Json file %v has been written.", jsonFileName)
-			// unpackCar()
 		}
 	}
 }
