@@ -2,8 +2,13 @@ App to concat files in chunks and create .car file from them.
 
 to build: go build -o [app_name]
 
-to run: ./[app_name] -f [input_folder] -o [output_filename]
+to run: ./[app_name] -f [input_folder] -o [output_filename] -d [datastore_folder]
 
-or use file dataprepper -f [input_folder] -o [output_filename]
+or use file dataprepper -f [input_folder] -o [output_filename] -d [datastore_folder]
 
-to generate test structure: chmod +x create_car.sh && ./create_car.sh
+to generate test structure: chmod +x test_data.sh && ./test_data.sh
+
+TODO:
+-- Fix returned JSON file with DAG structure
+-- -c ChunkSize and -i InterimBlockSize -- implemented, missing checks
+-- Goroutines where splitting file to chunks

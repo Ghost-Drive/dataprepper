@@ -18,4 +18,12 @@
 # vendor/
 
 nodes
+test_data
 .cursorignore
+
+car
+datastore
+
+*.car
+*.txt
+*.json
