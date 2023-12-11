@@ -47,6 +47,7 @@ type Dataprepper struct {
 	ParentNode struct {
 		Cid   string `json:"cid"`
 		Nodes []Node `json:"nodes"`
+		Path  string `json:"path"`
 	}
 	CurrentNode Node
 }

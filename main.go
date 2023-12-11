@@ -64,7 +64,19 @@ func main() {
 	dp.SetRoot(args.InputFolder)
 	dp.FileChunkSize = 1 << 20
 	if args.ChunkSize != "" {
+		args.ChunkSize = strings.ToLower(args.ChunkSize)
+		var multiplier int64 = 1
+		if strings.HasSuffix(args.ChunkSize, "k") {
+			multiplier = 1024
+			args.ChunkSize = strings.TrimSuffix(args.ChunkSize, "k")
+		} else if strings.HasSuffix(args.ChunkSize, "m") {
+			multiplier = 1024 * 1024
+			args.ChunkSize = strings.TrimSuffix(args.ChunkSize, "m")
+		}
+
 		chunkSize, err := strconv.ParseInt(args.ChunkSize, 10, 64)
+		chunkSize *= multiplier
+
 		if err != nil {
 			log.Fatal("Failed to convert Chunk Size to int64:", err)
 		}
@@ -73,10 +85,23 @@ func main() {
 
 	dp.ProtoNodesBreakPoint = 10 << 20
 	if args.InterimNodeSize != "" {
+		args.InterimNodeSize = strings.ToLower(args.InterimNodeSize)
+		var multiplier int64 = 1
+		if strings.HasSuffix(args.InterimNodeSize, "k") {
+			multiplier = 1024
+			args.InterimNodeSize = strings.TrimSuffix(args.InterimNodeSize, "k")
+		} else if strings.HasSuffix(args.InterimNodeSize, "m") {
+			multiplier = 1024 * 1024
+			args.InterimNodeSize = strings.TrimSuffix(args.InterimNodeSize, "m")
+		}
+
 		interimNodeSize, err := strconv.ParseInt(args.InterimNodeSize, 10, 64)
+		interimNodeSize *= multiplier
+
 		if err != nil {
 			log.Fatal("Failed to convert Interim Node Size to int64:", err)
 		}
+
 		dp.ProtoNodesBreakPoint = interimNodeSize
 	}
 
@@ -135,6 +160,7 @@ func main() {
 
 	dp.ParentNode.Cid = parentNode.Cid().String()
 	dp.ParentNode.Nodes = dp.CurrentNode.Nodes
+	dp.ParentNode.Path = args.InputFolder
 
 	err = car.WriteCar(context.Background(), dp.DagService, []cid.Cid{parentNode.Cid()}, carFile) //, resultSet.Cids, carFile)
 	if err != nil {
@@ -144,7 +170,9 @@ func main() {
 		log.Printf("Car file %v has been written. Blocks: %v", args.OutputFileName, len(dp.Cids))
 
 		if args.BadgerDatastore != "" {
-			os.Remove(args.BadgerDatastore)
+			if err := os.RemoveAll(args.BadgerDatastore); err != nil {
+				log.Println("Failed to remove Badger datastore directory:", err)
+			}
 		}
 
 		_res, err := json.MarshalIndent(dp.ParentNode, "", "    ")

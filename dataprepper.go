@@ -39,9 +39,9 @@ func (dp *Dataprepper) AddDag(protoNode *merkledag.ProtoNode) {
 	dp.Cids = append(dp.Cids, protoNode.Cid())
 }
 
-var _currentNodes, _currentParentNodes, _parentNodes []Node
-
 func (dp *Dataprepper) TraverseAndCreateNodes(dir string) error {
+	// var _logger_currentNodes, _logger_currentParentNodes, _logger_parentNodes []Node
+	var _logger_file_chunks_interims, _logger_file_chunks_chunks, _logger_named []Node
 	for _, d := range dp.Root {
 		if !d.IsDir() {
 			log.Println("Found file", d.Name(), "Skipping...")
@@ -54,8 +54,8 @@ func (dp *Dataprepper) TraverseAndCreateNodes(dir string) error {
 			log.Fatal(err)
 		}
 
-		var interimProtoNodes []ipld.Node
-		var _chunkedProtoNodes []ipld.Node
+		var _chunkedProtoNodes, interimProtoNodes []ipld.Node
+		// var _chunkedProtoNodes []ipld.Node
 		var _currentSize int64
 
 		for _, entry := range entries {
@@ -71,6 +71,7 @@ func (dp *Dataprepper) TraverseAndCreateNodes(dir string) error {
 
 			dp.Progress.CurrentFile = filepath.Join(folderPath, entry.Name())
 
+			// Logger
 			dp.CurrentNode = Node{
 				Path: dp.Progress.CurrentFile,
 			}
@@ -79,12 +80,19 @@ func (dp *Dataprepper) TraverseAndCreateNodes(dir string) error {
 			if err != nil {
 				log.Fatal(err)
 			}
+
 			for _, _pn := range _protoNodes {
 				_chunkedProtoNodes = append(_chunkedProtoNodes, _pn)
+
+				// Logger
 				dp.CurrentNode.Cids = append(dp.CurrentNode.Cids, _pn.Cid().String())
 			}
+
+			_logger_file_chunks_chunks = append(_logger_file_chunks_chunks, dp.CurrentNode)
+
+			// fmt.Println("INTERIM ", dp.CurrentNode.Nodes)
 			// set currentNode
-			_currentNodes = append(_currentNodes, dp.CurrentNode)
+			// _currentNodes = append(_currentNodes, dp.CurrentNode)
 
 			_protoNodes = nil
 
@@ -95,14 +103,19 @@ func (dp *Dataprepper) TraverseAndCreateNodes(dir string) error {
 				if err != nil {
 					log.Fatal(err)
 				}
-				_currentParentNode := Node{
-					Path: dp.Progress.CurrentFile,
+				_logger_file_chunks_interim := Node{
+					Path: fmt.Sprintf("interim/%v", folderPath),
 				}
+
+				// _currentParentNode := Node{
+				// 	path: dp.progress.currentfile,
+				// }
 
 				for _, _ccpn := range _concatedChunkedProtoNodes {
 					interimProtoNodes = append(interimProtoNodes, _ccpn)
 
-					_currentParentNode.Cids = append(_currentParentNode.Cids, _ccpn.Cid().String())
+					_logger_file_chunks_interim.Cids = append(_logger_file_chunks_interim.Cids, _ccpn.Cid().String())
+					// _currentParentNode.Cids = append(_currentParentNode.Cids, _ccpn.Cid().String())
 
 					dp.AddDag(_ccpn)
 				}
@@ -110,9 +123,10 @@ func (dp *Dataprepper) TraverseAndCreateNodes(dir string) error {
 				_chunkedProtoNodes = []ipld.Node{}
 				_currentSize = 0
 
-				_currentParentNode.Nodes = _currentNodes
-				_currentParentNodes = append(_currentParentNodes, _currentParentNode)
-				_currentNodes = []Node{}
+				_logger_file_chunks_interim.Nodes = _logger_file_chunks_chunks
+				_logger_file_chunks_interims = append(_logger_file_chunks_interims, _logger_file_chunks_interim)
+				_logger_file_chunks_chunks = []Node{}
+				// _currentNodes = []Node{}
 			}
 			runtime.GC()
 			debug.FreeOSMemory()
@@ -126,9 +140,20 @@ func (dp *Dataprepper) TraverseAndCreateNodes(dir string) error {
 				log.Fatal(err)
 			}
 
-			_currentParentNode := Node{
-				Path: dp.Progress.CurrentFile,
+			// _currentParentNode := Node{
+			// 	Path: dp.Progress.CurrentFile,
+			// }
+			_logger_file_chunks_interim := Node{
+				Path: fmt.Sprintf("interim/%v", folderPath),
 			}
+
+			_logger_folder := Node{
+				Path: folderPath,
+			}
+
+			// if len(interimProtoNodes) > 0 {
+
+			// }
 
 			for _, _ccpn := range _concatedChunkedProtoNodes {
 				dp.AddDag(_ccpn)
@@ -136,16 +161,30 @@ func (dp *Dataprepper) TraverseAndCreateNodes(dir string) error {
 				if len(interimProtoNodes) > 0 {
 					interimProtoNodes = append(interimProtoNodes, _ccpn)
 
-					_currentParentNode.Cids = append(_currentParentNode.Cids, _ccpn.Cid().String())
+					_logger_file_chunks_interim.Cids = append(_logger_file_chunks_interim.Cids, _ccpn.Cid().String())
+
+					// _currentParentNode.Cids = append(_currentParentNode.Cids, _ccpn.Cid().String())
 				} else {
 					dp.SetNodesWithName(_ccpn, d.Name())
+
+					for _, _nwn := range dp.NodesWithName {
+						_logger_folder.Cids = append(_logger_folder.Cids, _nwn.node.Cid().String())
+					}
 				}
 			}
 
 			if len(interimProtoNodes) > 0 {
-				_currentParentNode.Nodes = _currentNodes
-				_currentParentNodes = append(_currentParentNodes, _currentParentNode)
-				_currentNodes = []Node{}
+				_logger_file_chunks_interim.Nodes = _logger_file_chunks_chunks
+				_logger_file_chunks_interims = append(_logger_file_chunks_interims, _logger_file_chunks_interim)
+				_logger_file_chunks_chunks = []Node{}
+
+				// _currentParentNode.Nodes = _currentNodes
+				// _currentParentNodes = append(_currentParentNodes, _currentParentNode)
+				// _currentNodes = []Node{}
+			} else {
+				fmt.Print(_logger_file_chunks_chunks)
+				_logger_folder.Nodes = _logger_file_chunks_chunks
+				_logger_named = append(_logger_named, _logger_folder)
 			}
 		}
 
@@ -155,26 +194,38 @@ func (dp *Dataprepper) TraverseAndCreateNodes(dir string) error {
 				log.Fatal(err)
 			}
 
-			_parentNode := Node{
+			_logger_folder := Node{
 				Path: folderPath,
 			}
 
+			// _parentNode := Node{
+			// 	Path: folderPath,
+			// }
+
 			for _, _cfn := range _concatedFIleNodes {
 				dp.SetNodesWithName(_cfn, d.Name())
-				_parentNode.Cids = append(_parentNode.Cids, _cfn.Cid().String())
+
+				for _, _nwn := range dp.NodesWithName {
+					_logger_folder.Cids = append(_logger_folder.Cids, _nwn.node.Cid().String())
+				}
+				// _parentNode.Cids = append(_parentNode.Cids, _cfn.Cid().String())
 
 				dp.AddDag(_cfn)
 
+				_logger_folder.Nodes = _logger_file_chunks_interims
+				_logger_named = append(_logger_named, _logger_folder)
+
 			}
 			_concatedFIleNodes = nil
-			_parentNode.Nodes = _currentParentNodes
-			_currentParentNodes = []Node{}
+			// _parentNode.Nodes = _currentParentNodes
+			// _currentParentNodes = []Node{}
 		}
 
 		runtime.GC()
 	}
+
 	dp.CurrentNode = Node{
-		Nodes: _parentNodes,
+		Nodes: _logger_named,
 	}
 
 	return nil
@@ -188,7 +239,8 @@ func (dp *Dataprepper) _fileToProtoNode(file *os.File) ([]*merkledag.ProtoNode, 
 	_currentBytes := 0
 
 	var protoNodes []*merkledag.ProtoNode
-	var _nodesLogger []Node
+	var _logger_chunks, _logger_interims []Node
+
 	_i := 1
 	for {
 		chunk := make([]byte, dp.FileChunkSize)
@@ -209,12 +261,14 @@ func (dp *Dataprepper) _fileToProtoNode(file *os.File) ([]*merkledag.ProtoNode, 
 		nodes = append(nodes, node)
 		dp.AddDag(node)
 
-		_nodeLogger := Node{
+		_logger_chunk := Node{
 			Path: fmt.Sprintf("%v/chunk_%v", dp.CurrentNode.Path, _i),
 		}
-		_nodeLogger.Cids = append(_nodeLogger.Cids, node.Cid().String())
 
-		dp.CurrentNode.Nodes = append(dp.CurrentNode.Nodes, _nodeLogger)
+		_logger_chunk.Cids = append(_logger_chunk.Cids, node.Cid().String())
+		_logger_chunks = append(_logger_chunks, _logger_chunk)
+
+		// dp.CurrentNode.Nodes = append(dp.CurrentNode.Nodes, _nodeLogger)
 
 		_currentBytes += n
 
@@ -224,10 +278,21 @@ func (dp *Dataprepper) _fileToProtoNode(file *os.File) ([]*merkledag.ProtoNode, 
 			if err != nil {
 				log.Fatal(err)
 			}
+
+			_logger_interim := Node{
+				Path: fmt.Sprintf("%v/interim_%v", dp.CurrentNode.Path, _i),
+			}
+
 			for _, _cpn := range _chunkedProtoNodes {
 				dp.AddDag(_cpn)
 				protoNodes = append(protoNodes, _cpn)
+
+				_logger_interim.Cids = append(_logger_interim.Cids, _cpn.Cid().String())
 			}
+
+			_logger_interim.Nodes = _logger_chunks
+			_logger_chunks = []Node{}
+			_logger_interims = append(_logger_interims, _logger_interim)
 
 			nodes = []ipld.Node{}
 			_currentBytes = 0
@@ -246,12 +311,22 @@ func (dp *Dataprepper) _fileToProtoNode(file *os.File) ([]*merkledag.ProtoNode, 
 		if err != nil {
 			log.Fatal(err)
 		}
+		_logger_interim := Node{
+			Path: fmt.Sprintf("%v/interim_%v", dp.CurrentNode.Path, _i),
+		}
+
 		for _, _cpn := range _chunkedProtoNodes {
 			dp.AddDag(_cpn)
 			protoNodes = append(protoNodes, _cpn)
+
+			_logger_interim.Cids = append(_logger_interim.Cids, _cpn.Cid().String())
 		}
+
+		_logger_interim.Nodes = _logger_chunks
+		_logger_interims = append(_logger_interims, _logger_interim)
 	}
-	dp.CurrentNode.Nodes = _nodesLogger
+
+	dp.CurrentNode.Nodes = _logger_interims
 
 	return protoNodes, nil
 }
