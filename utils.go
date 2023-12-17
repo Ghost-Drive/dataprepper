@@ -194,19 +194,19 @@ func DiskCheck(folderPath *string) {
 // FSCheck checks filesystem space details based on input and output paths.
 func FSCheck(inputFolder string, outputFile *string, datastore *string) error {
 	// Helper function to get filesystem statistics
-	getFSStats := func(path string) (totalSpace, freeSpace uint64, err error) {
+	getFSStats := func(path string) (totalSpace, freeSpace int64, err error) {
 		var fs syscall.Statfs_t
 		err = syscall.Statfs(path, &fs)
 		if err != nil {
 			return 0, 0, err
 		}
-		totalSpace = fs.Blocks * uint64(fs.Bsize)
-		freeSpace = fs.Bfree * uint64(fs.Bsize)
+		totalSpace = int64(fs.Blocks) * fs.Bsize
+		freeSpace = int64(fs.Bfree) * fs.Bsize
 		return totalSpace, freeSpace, nil
 	}
 
 	// Helper function to convert bytes to gigabytes
-	bytesToGB := func(bytes uint64) float64 {
+	bytesToGB := func(bytes int64) float64 {
 		return float64(bytes) / 1024 / 1024 / 1024
 	}
 
@@ -223,7 +223,7 @@ func FSCheck(inputFolder string, outputFile *string, datastore *string) error {
 	}
 
 	// Check filesystem of outputFile
-	var outputTotal, outputFree uint64
+	var outputTotal, outputFree int64
 	if outputFile != nil && *outputFile != "" && !sameDrive(inputFolder, *outputFile) {
 		outputTotal, outputFree, err = getFSStats(*outputFile)
 		if err != nil {
@@ -234,7 +234,7 @@ func FSCheck(inputFolder string, outputFile *string, datastore *string) error {
 	}
 
 	// Check filesystem of datastore
-	var datastoreTotal, datastoreFree uint64
+	var datastoreTotal, datastoreFree int64
 	if datastore != nil && *datastore != "" && !sameDrive(inputFolder, *datastore) && (outputFile == nil || !sameDrive(*outputFile, *datastore)) {
 		datastoreTotal, datastoreFree, err = getFSStats(*datastore)
 		if err != nil {
@@ -274,14 +274,14 @@ func FSCheck(inputFolder string, outputFile *string, datastore *string) error {
 }
 
 // getFolderSize calculates the total size of a folder.
-func GetFolderSize(path string) (uint64, error) {
-	var size uint64
+func GetFolderSize(path string) (int64, error) {
+	var size int64
 	err := filepath.Walk(path, func(_ string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
 		if !info.IsDir() {
-			size += uint64(info.Size())
+			size += info.Size()
 		}
 		return nil
 	})

@@ -11,26 +11,19 @@ for dir in A B C D E; do
     mkdir -p "$dir"
 
     # Generating a random number between 5 and 10 for file count
-    fileCount=$((RANDOM % 6 + 20))
-
-    # Calculate the number of files needed to reach 17GB with each file being 1MB in size
-    # Calculate the total size for each directory (between 4GB and 7GB)
-    dirSize=$((RANDOM % 4 + 4 * 1024 * 1024))
+    # Set the total size for each directory to 100MB
+    dirSize=104857600 # 100MB in bytes
 
     # Initialize the current size to 0
     currentSize=0
 
     while ((currentSize < dirSize)); do
-        # Generate a random file size between 500KB and 10MB
-        fileSize=$((RANDOM % 10 * 1024 + 500))
+        # Set file size to 1MB
+        fileSize=1048576 # 1MB in bytes
 
-        # If adding another file of this size would exceed the total size, adjust the file size
-        if ((currentSize + fileSize > dirSize)); then
-            fileSize=$((dirSize - currentSize))
-        fi
-
-        # Creating a dummy file of the calculated size
-        head -c "${fileSize}K" /dev/urandom | base64 > "${dir}/$(date +%s%N).txt"
+        # Creating a dummy file of 1MB size
+        dd if=/dev/urandom of="${dir}/$(date +%s%N).txt" bs=${fileSize} count=1 status=none
+        # head -c "${fileSize}" /dev/urandom | base64 > "${dir}/$(date +%s%N).txt"
 
         # Update the current size
         currentSize=$((currentSize + fileSize))

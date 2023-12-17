@@ -159,7 +159,6 @@ func main() {
 	fmt.Printf("\nWriting .car file %v, CID: %v. Please wait...\n", args.OutputFileName, parentNode.Cid().String())
 
 	dp.ParentNode.Cid = parentNode.Cid().String()
-	dp.ParentNode.Nodes = dp.CurrentNode.Nodes
 	dp.ParentNode.Path = args.InputFolder
 
 	err = car.WriteCar(context.Background(), dp.DagService, []cid.Cid{parentNode.Cid()}, carFile) //, resultSet.Cids, carFile)
@@ -175,23 +174,22 @@ func main() {
 			}
 		}
 
-		_res, err := json.MarshalIndent(dp.ParentNode, "", "    ")
-		if err != nil {
-			log.Fatal("Error:", err)
-		}
-
-		jsonFileName := strings.TrimSuffix(args.OutputFileName, filepath.Ext(args.OutputFileName)) + ".json"
+		jsonFileName := strings.TrimSuffix(args.OutputFileName, filepath.Ext(args.OutputFileName)) + ".jsonl"
 		jsonFile, err := os.Create(jsonFileName)
-
 		if err != nil {
 			log.Fatal("Error:", err)
 		}
 		defer jsonFile.Close()
 
-		_, err = jsonFile.Write(_res)
-		if err != nil {
-			log.Fatal("Error:", err)
+		jsonFile.WriteString(fmt.Sprintf("{\"root\": \"%s\"}\n", dp.ParentNode.Cid))
+		encoder := json.NewEncoder(jsonFile)
+		// encoder.SetIndent("", "  ")
+		for _, node := range dp.ParentNode.Nodes {
+			if err := encoder.Encode(node); err != nil {
+				log.Fatalf("Error writing node to jsonl file: %v", err)
+			}
 		}
+
 		log.Printf("Json file %v has been written.", jsonFileName)
 	}
 }

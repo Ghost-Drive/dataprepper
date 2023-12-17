@@ -25,6 +25,10 @@ func (dp *Dataprepper) SetRoot(dir string) {
 	dp.Root = root
 }
 
+func (dp *Dataprepper) ConcatFiles(protoNodes []*merkledag.ProtoNode, setNodeWithName *bool, nodeName *string) {
+
+}
+
 func (dp *Dataprepper) SetNodesWithName(protoNode *merkledag.ProtoNode, nodeName string) {
 	dp.NodesWithName = append(dp.NodesWithName, NodeWithName{
 		node: protoNode,
@@ -40,8 +44,6 @@ func (dp *Dataprepper) AddDag(protoNode *merkledag.ProtoNode) {
 }
 
 func (dp *Dataprepper) TraverseAndCreateNodes(dir string) error {
-	// var _logger_currentNodes, _logger_currentParentNodes, _logger_parentNodes []Node
-	var _logger_file_chunks_interims, _logger_file_chunks_chunks, _logger_named []Node
 	for _, d := range dp.Root {
 		if !d.IsDir() {
 			log.Println("Found file", d.Name(), "Skipping...")
@@ -54,9 +56,30 @@ func (dp *Dataprepper) TraverseAndCreateNodes(dir string) error {
 			log.Fatal(err)
 		}
 
+		// grab total folder size
+		folderSize, err := GetFolderSize(folderPath)
+		if err != nil {
+			log.Fatal(err)
+		}
+
 		var _chunkedProtoNodes, interimProtoNodes []ipld.Node
 		// var _chunkedProtoNodes []ipld.Node
 		var _currentSize int64
+
+		// check if there's a need to form interims
+		_needsToSplitToInterim := folderSize > dp.ProtoNodesBreakPoint
+
+		// logger 1 folder = 1 json
+		// create _logger_folder_object
+		dp.CurrentFolder = Node{
+			Path: d.Name(),
+		}
+
+		if _needsToSplitToInterim {
+			dp.CurrentInterim = &Node{
+				Path: fmt.Sprintf("%v/interim_%v", d.Name(), len(dp.CurrentFolder.Nodes)+1),
+			}
+		}
 
 		for _, entry := range entries {
 			if entry.IsDir() {
@@ -73,8 +96,17 @@ func (dp *Dataprepper) TraverseAndCreateNodes(dir string) error {
 
 			// Logger
 			dp.CurrentNode = Node{
-				Path: dp.Progress.CurrentFile,
+				Path: filepath.Base(dp.Progress.CurrentFile),
 			}
+
+			/*
+				1. Convert file to ipld.Node
+				2. Recieve slice of *merkledag.ProtoNode
+				3. if size of files converted to ipld.Node >= protonodebreakpoint, pack them into interim, and clean them up from memory
+				4. if size of files converted to ipld.Node < protonodebreakpoint after app done with folder, pack them into NamedNode
+				5. All interims of a folder then packed into NamedNode
+				6. If there's not enough files to form an interim, pack them into NamedNode
+			*/
 
 			_protoNodes, err := dp.FileToProtoNode(dp.Progress.CurrentFile)
 			if err != nil {
@@ -88,144 +120,138 @@ func (dp *Dataprepper) TraverseAndCreateNodes(dir string) error {
 				dp.CurrentNode.Cids = append(dp.CurrentNode.Cids, _pn.Cid().String())
 			}
 
-			_logger_file_chunks_chunks = append(_logger_file_chunks_chunks, dp.CurrentNode)
-
-			// fmt.Println("INTERIM ", dp.CurrentNode.Nodes)
-			// set currentNode
-			// _currentNodes = append(_currentNodes, dp.CurrentNode)
-
+			// cleanup
 			_protoNodes = nil
 
 			_currentSize += info.Size()
 
-			if _currentSize >= dp.ProtoNodesBreakPoint {
+			if !_needsToSplitToInterim {
+				// if there won't be any need for interims then just add nodes to current folder
+				dp.CurrentFolder.Nodes = append(dp.CurrentFolder.Nodes, dp.CurrentNode)
+			} else {
+				// append dp.CurrentNode to to currentinterim
+				dp.CurrentInterim.Nodes = append(dp.CurrentInterim.Nodes, dp.CurrentNode)
+			}
+
+			// 1. If files in folder is enough to form interim, and there are more files to come
+			if _currentSize >= dp.ProtoNodesBreakPoint && _needsToSplitToInterim {
 				_concatedChunkedProtoNodes, err := dp.UnixfsCat.ConcatFileNodes(_chunkedProtoNodes...)
 				if err != nil {
 					log.Fatal(err)
 				}
-				_logger_file_chunks_interim := Node{
-					Path: fmt.Sprintf("interim/%v", folderPath),
-				}
-
-				// _currentParentNode := Node{
-				// 	path: dp.progress.currentfile,
-				// }
 
 				for _, _ccpn := range _concatedChunkedProtoNodes {
 					interimProtoNodes = append(interimProtoNodes, _ccpn)
 
-					_logger_file_chunks_interim.Cids = append(_logger_file_chunks_interim.Cids, _ccpn.Cid().String())
-					// _currentParentNode.Cids = append(_currentParentNode.Cids, _ccpn.Cid().String())
-
 					dp.AddDag(_ccpn)
+					// cet cids for interims
+					dp.CurrentInterim.Cids = append(dp.CurrentInterim.Cids, _ccpn.Cid().String())
 				}
 
 				_chunkedProtoNodes = []ipld.Node{}
 				_currentSize = 0
 
-				_logger_file_chunks_interim.Nodes = _logger_file_chunks_chunks
-				_logger_file_chunks_interims = append(_logger_file_chunks_interims, _logger_file_chunks_interim)
-				_logger_file_chunks_chunks = []Node{}
-				// _currentNodes = []Node{}
+				// Append to CurrentFolder and then Recreate Interim block
+				dp.CurrentFolder.Nodes = append(dp.CurrentFolder.Nodes, *dp.CurrentInterim)
+				dp.CurrentInterim = &Node{
+					Path: fmt.Sprintf("%v/interim_%v", d.Name(), len(dp.CurrentFolder.Nodes)+1),
+				}
 			}
+
+			// cleanup
 			runtime.GC()
 			debug.FreeOSMemory()
 
 			dp.DisplayProgress(true)
 		}
-
-		if len(_chunkedProtoNodes) > 0 {
+		// fmt.Println(len(_chunkedProtoNodes), len(interimProtoNodes))
+		// 2. if there are leftovers files and there interims present, then pack leftovers to interim
+		if len(_chunkedProtoNodes) > 1 && len(interimProtoNodes) > 0 {
 			_concatedChunkedProtoNodes, err := dp.UnixfsCat.ConcatFileNodes(_chunkedProtoNodes...)
 			if err != nil {
 				log.Fatal(err)
 			}
 
-			// _currentParentNode := Node{
-			// 	Path: dp.Progress.CurrentFile,
-			// }
-			_logger_file_chunks_interim := Node{
-				Path: fmt.Sprintf("interim/%v", folderPath),
-			}
-
-			_logger_folder := Node{
-				Path: folderPath,
-			}
-
-			// if len(interimProtoNodes) > 0 {
-
-			// }
-
 			for _, _ccpn := range _concatedChunkedProtoNodes {
 				dp.AddDag(_ccpn)
-
-				if len(interimProtoNodes) > 0 {
-					interimProtoNodes = append(interimProtoNodes, _ccpn)
-
-					_logger_file_chunks_interim.Cids = append(_logger_file_chunks_interim.Cids, _ccpn.Cid().String())
-
-					// _currentParentNode.Cids = append(_currentParentNode.Cids, _ccpn.Cid().String())
-				} else {
-					dp.SetNodesWithName(_ccpn, d.Name())
-
-					for _, _nwn := range dp.NodesWithName {
-						_logger_folder.Cids = append(_logger_folder.Cids, _nwn.node.Cid().String())
-					}
-				}
+				interimProtoNodes = append(interimProtoNodes, _ccpn)
+				dp.CurrentInterim.Cids = append(dp.CurrentInterim.Cids, _ccpn.Cid().String())
 			}
 
-			if len(interimProtoNodes) > 0 {
-				_logger_file_chunks_interim.Nodes = _logger_file_chunks_chunks
-				_logger_file_chunks_interims = append(_logger_file_chunks_interims, _logger_file_chunks_interim)
-				_logger_file_chunks_chunks = []Node{}
-
-				// _currentParentNode.Nodes = _currentNodes
-				// _currentParentNodes = append(_currentParentNodes, _currentParentNode)
-				// _currentNodes = []Node{}
-			} else {
-				fmt.Print(_logger_file_chunks_chunks)
-				_logger_folder.Nodes = _logger_file_chunks_chunks
-				_logger_named = append(_logger_named, _logger_folder)
+			// Append to CurrentFolder and then Recreate Interim block
+			dp.CurrentFolder.Nodes = append(dp.CurrentFolder.Nodes, *dp.CurrentInterim)
+			dp.CurrentInterim = &Node{
+				Path: fmt.Sprintf("%v/interim_%v", d.Name(), len(dp.CurrentFolder.Nodes)+1),
 			}
-		}
 
-		if len(interimProtoNodes) > 0 {
-			_concatedFIleNodes, err := dp.UnixfsCat.ConcatFileNodes(interimProtoNodes...)
+			_concatedFileNodes, err := dp.UnixfsCat.ConcatFileNodes(interimProtoNodes...)
 			if err != nil {
 				log.Fatal(err)
 			}
 
-			_logger_folder := Node{
-				Path: folderPath,
-			}
-
-			// _parentNode := Node{
-			// 	Path: folderPath,
-			// }
-
-			for _, _cfn := range _concatedFIleNodes {
+			for _, _cfn := range _concatedFileNodes {
 				dp.SetNodesWithName(_cfn, d.Name())
-
-				for _, _nwn := range dp.NodesWithName {
-					_logger_folder.Cids = append(_logger_folder.Cids, _nwn.node.Cid().String())
-				}
-				// _parentNode.Cids = append(_parentNode.Cids, _cfn.Cid().String())
-
 				dp.AddDag(_cfn)
 
-				_logger_folder.Nodes = _logger_file_chunks_interims
-				_logger_named = append(_logger_named, _logger_folder)
-
+				dp.CurrentFolder.Cids = append(dp.CurrentFolder.Cids, _cfn.Cid().String())
 			}
-			_concatedFIleNodes = nil
-			// _parentNode.Nodes = _currentParentNodes
-			// _currentParentNodes = []Node{}
+			_chunkedProtoNodes, interimProtoNodes = []ipld.Node{}, []ipld.Node{}
+		}
+		// 3. if there are leftovers files and no interims, then pack leftovers to Named
+		if len(_chunkedProtoNodes) > 1 && len(interimProtoNodes) == 0 {
+			_concatedFileNodes, err := dp.UnixfsCat.ConcatFileNodes(_chunkedProtoNodes...)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			for _, _cfn := range _concatedFileNodes {
+				dp.SetNodesWithName(_cfn, d.Name())
+				dp.AddDag(_cfn)
+				dp.CurrentFolder.Cids = append(dp.CurrentFolder.Cids, _cfn.Cid().String())
+			}
+			_chunkedProtoNodes = []ipld.Node{}
+		}
+		// 4. if there is only one file and no interims, make this file a NamedNode
+		if len(_chunkedProtoNodes) == 1 && len(interimProtoNodes) == 0 {
+			dp.SetNodesWithName(_chunkedProtoNodes[0].(*merkledag.ProtoNode), d.Name())
+			dp.CurrentFolder.Cids = append(dp.CurrentFolder.Cids, _chunkedProtoNodes[0].Cid().String())
+		}
+		// 5. if there is only one file and interims are present, then pack this file togethere with interims and then interims to NamedNodes
+		if len(_chunkedProtoNodes) == 1 && len(interimProtoNodes) > 0 {
+			interimProtoNodes = append(interimProtoNodes, _chunkedProtoNodes[0].(*merkledag.ProtoNode))
+			dp.CurrentInterim.Cids = append(dp.CurrentInterim.Cids, _chunkedProtoNodes[0].Cid().String())
+
+			dp.CurrentFolder.Nodes = append(dp.CurrentFolder.Nodes, *dp.CurrentInterim)
+
+			_concatedFileNodes, err := dp.UnixfsCat.ConcatFileNodes(interimProtoNodes...)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			for _, _cfn := range _concatedFileNodes {
+				dp.SetNodesWithName(_cfn, d.Name())
+				dp.AddDag(_cfn)
+				dp.CurrentFolder.Cids = append(dp.CurrentFolder.Cids, _cfn.Cid().String())
+			}
+			_chunkedProtoNodes, interimProtoNodes = []ipld.Node{}, []ipld.Node{}
+		}
+		// 6. if there are no files left and interims are present, concat them to NamedNode
+		if len(_chunkedProtoNodes) == 0 && len(interimProtoNodes) > 0 {
+			_concatedFileNodes, err := dp.UnixfsCat.ConcatFileNodes(interimProtoNodes...)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			for _, _cfn := range _concatedFileNodes {
+				dp.SetNodesWithName(_cfn, d.Name())
+				dp.AddDag(_cfn)
+				dp.CurrentFolder.Cids = append(dp.CurrentFolder.Cids, _cfn.Cid().String())
+			}
 		}
 
-		runtime.GC()
-	}
+		dp.ParentNode.Nodes = append(dp.ParentNode.Nodes, dp.CurrentFolder)
 
-	dp.CurrentNode = Node{
-		Nodes: _logger_named,
+		runtime.GC()
 	}
 
 	return nil
@@ -241,7 +267,22 @@ func (dp *Dataprepper) _fileToProtoNode(file *os.File) ([]*merkledag.ProtoNode, 
 	var protoNodes []*merkledag.ProtoNode
 	var _logger_chunks, _logger_interims []Node
 
-	_i := 1
+	fileInfo, err := file.Stat()
+	if err != nil {
+		log.Fatal(err)
+	}
+	fileSize := fileInfo.Size()
+	_needsToSplitToInterim := fileSize > dp.ProtoNodesBreakPoint
+
+	var _logger_interim *Node
+	if _needsToSplitToInterim {
+		_logger_interim = &Node{
+			Path: fmt.Sprintf("%v/interim_%v", filepath.Base(dp.CurrentNode.Path), 1),
+		}
+	}
+
+	_c := 1
+	_i := 2
 	for {
 		chunk := make([]byte, dp.FileChunkSize)
 		n, err := reader.Read(chunk)
@@ -262,7 +303,7 @@ func (dp *Dataprepper) _fileToProtoNode(file *os.File) ([]*merkledag.ProtoNode, 
 		dp.AddDag(node)
 
 		_logger_chunk := Node{
-			Path: fmt.Sprintf("%v/chunk_%v", dp.CurrentNode.Path, _i),
+			Path: fmt.Sprintf("chunk_%v", _c),
 		}
 
 		_logger_chunk.Cids = append(_logger_chunk.Cids, node.Cid().String())
@@ -272,15 +313,19 @@ func (dp *Dataprepper) _fileToProtoNode(file *os.File) ([]*merkledag.ProtoNode, 
 
 		_currentBytes += n
 
-		if int64(_currentBytes) >= dp.ProtoNodesBreakPoint {
+		/*
+			1. if file_size <= chunk_size -> no interim, just return the file_node, it will become part of the FileFolder or the FileFolder
+			2. if file_size > chunk_size -> split file to chunks, concat them to interim when enough collected, Interim will become part of the FileFolder or the FileFolder
+				2.1 if _currentBytes (total current size of chunks of a file) < protonodesbreakpoint -> not enough chunks collected, if there are no more bytes in file, concat given chunks to interim. Interim will become part of the FileFolder or the FileFolder
+				2.2 if _currentBytes (total current size of chunks of a file) >= protonodesbreakpoint -> enough chunks collected, concat them to interim, look for more chunks, collect them again. Interim CIDs array is returned as blocks of a file.
+		*/
+
+		// 1. if file_size strictly more than pnbp
+		if int64(_currentBytes) >= dp.ProtoNodesBreakPoint && _needsToSplitToInterim {
 
 			_chunkedProtoNodes, err := dp.UnixfsCat.ConcatFileNodes(nodes...)
 			if err != nil {
 				log.Fatal(err)
-			}
-
-			_logger_interim := Node{
-				Path: fmt.Sprintf("%v/interim_%v", dp.CurrentNode.Path, _i),
 			}
 
 			for _, _cpn := range _chunkedProtoNodes {
@@ -292,10 +337,15 @@ func (dp *Dataprepper) _fileToProtoNode(file *os.File) ([]*merkledag.ProtoNode, 
 
 			_logger_interim.Nodes = _logger_chunks
 			_logger_chunks = []Node{}
-			_logger_interims = append(_logger_interims, _logger_interim)
+			_logger_interims = append(_logger_interims, *_logger_interim)
+
+			_logger_interim = &Node{
+				Path: fmt.Sprintf("interim_%v", _i),
+			}
 
 			nodes = []ipld.Node{}
 			_currentBytes = 0
+			_i++
 		}
 
 		currentChunkSize := dp.FileChunkSize
@@ -304,26 +354,47 @@ func (dp *Dataprepper) _fileToProtoNode(file *os.File) ([]*merkledag.ProtoNode, 
 		}
 		dp.Progress.ProcessedSize += currentChunkSize
 		dp.DisplayProgress(false)
-		_i++
+		_c++
 	}
-	if len(nodes) > 0 {
-		_chunkedProtoNodes, err := dp.UnixfsCat.ConcatFileNodes(nodes...)
+	// 2. if there are leftovers chunks and there interims present, then pack leftovers to interim
+	if len(nodes) > 1 && len(protoNodes) > 0 {
+		fmt.Println("kek")
+		_concatedChunkedProtoNodes, err := dp.UnixfsCat.ConcatFileNodes(nodes...)
 		if err != nil {
 			log.Fatal(err)
 		}
-		_logger_interim := Node{
-			Path: fmt.Sprintf("%v/interim_%v", dp.CurrentNode.Path, _i),
+
+		for _, _ccpn := range _concatedChunkedProtoNodes {
+			dp.AddDag(_ccpn)
+			protoNodes = append(protoNodes, _ccpn)
+
+			_logger_interim.Cids = append(_logger_interim.Cids, _ccpn.Cid().String())
 		}
-
-		for _, _cpn := range _chunkedProtoNodes {
-			dp.AddDag(_cpn)
-			protoNodes = append(protoNodes, _cpn)
-
-			_logger_interim.Cids = append(_logger_interim.Cids, _cpn.Cid().String())
-		}
-
+		// reset to not trigger following ifs
 		_logger_interim.Nodes = _logger_chunks
-		_logger_interims = append(_logger_interims, _logger_interim)
+		_logger_chunks = []Node{}
+		_logger_interims = append(_logger_interims, *_logger_interim)
+
+		_logger_interim = &Node{
+			Path: fmt.Sprintf("interim_%v", _i),
+		}
+
+		nodes = []ipld.Node{}
+	}
+
+	// 3. if there are leftovers chunks and no interims, then just return them
+	// 4. if there is only one chunk and interims are present, then add this chunk to interims and return
+	// 5. if there is only one chunk and no interims are present, then add this chunk to interims and return
+	if len(nodes) >= 1 && len(protoNodes) >= 0 {
+		for _, _n := range nodes {
+			protoNodes = append(protoNodes, _n.(*merkledag.ProtoNode))
+
+			_logger_interim = &Node{
+				Path: fmt.Sprintf("chunk_%v", _c),
+				Cids: []string{_n.Cid().String()},
+			}
+			_c++
+		}
 	}
 
 	dp.CurrentNode.Nodes = _logger_interims

@@ -46,10 +46,12 @@ type Dataprepper struct {
 	UnixfsCat  ParentDagBuilder
 	ParentNode struct {
 		Cid   string `json:"cid"`
-		Nodes []Node `json:"nodes"`
+		Nodes []Node `json:"nodes,omitempty"`
 		Path  string `json:"path"`
 	}
-	CurrentNode Node
+	CurrentNode    Node
+	CurrentInterim *Node
+	CurrentFolder  Node
 }
 
 type Node struct {

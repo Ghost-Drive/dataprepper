@@ -27,3 +27,4 @@ datastore
 *.car
 *.txt
 *.json
+*.jsonl
