@@ -46,7 +46,7 @@ func (dp *Dataprepper) AddDag(protoNode *merkledag.ProtoNode) {
 func (dp *Dataprepper) TraverseAndCreateNodes(dir string) error {
 	for _, d := range dp.Root {
 		if !d.IsDir() {
-			log.Println("Found file", d.Name(), "Skipping...")
+			// log.Println("Found file", d.Name(), "Skipping...")
 			continue
 		}
 
@@ -83,7 +83,7 @@ func (dp *Dataprepper) TraverseAndCreateNodes(dir string) error {
 
 		for _, entry := range entries {
 			if entry.IsDir() {
-				log.Println("Found folder", entry.Name(), "Skipping...")
+				// log.Println("Found folder", entry.Name(), "Skipping...")
 				continue
 			}
 
@@ -358,7 +358,6 @@ func (dp *Dataprepper) _fileToProtoNode(file *os.File) ([]*merkledag.ProtoNode, 
 	}
 	// 2. if there are leftovers chunks and there interims present, then pack leftovers to interim
 	if len(nodes) > 1 && len(protoNodes) > 0 {
-		fmt.Println("kek")
 		_concatedChunkedProtoNodes, err := dp.UnixfsCat.ConcatFileNodes(nodes...)
 		if err != nil {
 			log.Fatal(err)
