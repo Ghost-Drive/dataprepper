@@ -6,11 +6,13 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 	"unixfs-cat/config"
 
@@ -35,6 +37,7 @@ func main() {
 	flag.StringVar(&args.BadgerDatastore, "d", "", "Datastore folder")
 	flag.StringVar(&args.ChunkSize, "c", "", "Chunk size")
 	flag.StringVar(&args.InterimNodeSize, "i", "", "Interim node size")
+	args.Silent = flag.Bool("silent", false, "Silence all output")
 	// flag.StringVar(&args.SettingsFile, "s", "", "Settings file")
 	flag.Parse()
 
@@ -53,9 +56,21 @@ func main() {
 		}
 	}
 
-	// if err := FSCheck(args.InputFolder, &args.OutputFileName, &args.BadgerDatastore); err != nil {
-	// 	log.Fatal(err)
-	// }
+	if *args.Silent {
+		log.SetOutput(io.Discard)
+		originalStdout := os.Stdout
+		temp, _ := os.CreateTemp("", "temp-stdout")
+		os.Stdout = temp
+
+		defer func() {
+			os.Stdout = originalStdout
+			temp.Close()
+			os.Remove(temp.Name())
+		}()
+
+		devNull, _ := os.Open(os.DevNull)
+		syscall.Dup2(int(devNull.Fd()), int(os.Stdout.Fd()))
+	}
 
 	var dp Dataprepper
 	var _blockstore blockstore.Blockstore

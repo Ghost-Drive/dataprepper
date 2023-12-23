@@ -29,6 +29,7 @@ type Args struct {
 	SettingsFile    string
 	ChunkSize       string
 	InterimNodeSize string
+	Silent          *bool
 }
 
 type Dataprepper struct {
