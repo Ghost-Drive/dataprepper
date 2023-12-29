@@ -10,6 +10,8 @@ to set chunk size and interim node size (optional): -c [chunk_size]k/m -i [inter
 
 to use in silent mode add flag [--silent]
 
+to set custom value for MaxLinksPerBlock -m [int]
+
 to generate test structure: chmod +x test_data.sh && ./test_data.sh
 
 TODO:

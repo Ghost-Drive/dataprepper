@@ -37,6 +37,7 @@ func main() {
 	flag.StringVar(&args.BadgerDatastore, "d", "", "Datastore folder")
 	flag.StringVar(&args.ChunkSize, "c", "", "Chunk size")
 	flag.StringVar(&args.InterimNodeSize, "i", "", "Interim node size")
+	flag.IntVar(&args.MaxLinksPerBlock, "m", 0, "Max Links per Block")
 	args.Silent = flag.Bool("silent", false, "Silence all output")
 	// flag.StringVar(&args.SettingsFile, "s", "", "Settings file")
 	flag.Parse()
@@ -72,10 +73,14 @@ func main() {
 		syscall.Dup2(int(devNull.Fd()), int(os.Stdout.Fd()))
 	}
 
+	if args.MaxLinksPerBlock == 0 {
+		args.MaxLinksPerBlock = helpers.DefaultLinksPerBlock
+	}
+
 	var dp Dataprepper
 	var _blockstore blockstore.Blockstore
 
-	dp.UnixfsCat = ParentDagBuilder{maxLinks: helpers.DefaultLinksPerBlock}
+	dp.UnixfsCat = ParentDagBuilder{maxLinks: args.MaxLinksPerBlock}
 	dp.SetRoot(args.InputFolder)
 	dp.FileChunkSize = 1 << 20
 	if args.ChunkSize != "" {

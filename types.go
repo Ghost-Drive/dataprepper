@@ -23,13 +23,14 @@ type nodeWithLinks struct {
 }
 
 type Args struct {
-	OutputFileName  string
-	InputFolder     string
-	BadgerDatastore string
-	SettingsFile    string
-	ChunkSize       string
-	InterimNodeSize string
-	Silent          *bool
+	OutputFileName   string
+	InputFolder      string
+	BadgerDatastore  string
+	SettingsFile     string
+	ChunkSize        string
+	InterimNodeSize  string
+	Silent           *bool
+	MaxLinksPerBlock int
 }
 
 type Dataprepper struct {

@@ -20,6 +20,7 @@
 nodes
 test_data
 .cursorignore
+tt.sh
 
 car
 datastore
