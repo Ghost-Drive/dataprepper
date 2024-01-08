@@ -57,7 +57,8 @@ type Dataprepper struct {
 }
 
 type Node struct {
-	Path  string   `json:"path"`
-	Cids  []string `json:"cid"`
-	Nodes []Node   `json:"nodes,omitempty"`
+	Path string `json:"path"`
+	Cid  string `json:"cid"`
+	// Cids  []string `json:"cid"`
+	Nodes []Node `json:"nodes,omitempty"`
 }

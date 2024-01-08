@@ -73,14 +73,9 @@ func main() {
 		syscall.Dup2(int(devNull.Fd()), int(os.Stdout.Fd()))
 	}
 
-	if args.MaxLinksPerBlock == 0 {
-		args.MaxLinksPerBlock = helpers.DefaultLinksPerBlock
-	}
-
 	var dp Dataprepper
 	var _blockstore blockstore.Blockstore
 
-	dp.UnixfsCat = ParentDagBuilder{maxLinks: args.MaxLinksPerBlock}
 	dp.SetRoot(args.InputFolder)
 	dp.FileChunkSize = 1 << 20
 	if args.ChunkSize != "" {
@@ -124,6 +119,30 @@ func main() {
 
 		dp.ProtoNodesBreakPoint = interimNodeSize
 	}
+
+	// fmt.Println("count of possible links per block", dp.ProtoNodesBreakPoint/dp.FileChunkSize)
+	_possibleLinksPerBlock := dp.ProtoNodesBreakPoint / dp.FileChunkSize
+	if (_possibleLinksPerBlock < int64(helpers.DefaultLinksPerBlock)) || (args.MaxLinksPerBlock != 0 && args.MaxLinksPerBlock < helpers.BlockSizeLimit && args.MaxLinksPerBlock > int(_possibleLinksPerBlock)) {
+		args.MaxLinksPerBlock = helpers.DefaultLinksPerBlock
+	} else {
+		args.MaxLinksPerBlock = int(_possibleLinksPerBlock) + 1
+	}
+	// fmt.Println("Max Links Per Block", args.MaxLinksPerBlock)
+
+	dp.UnixfsCat = ParentDagBuilder{maxLinks: args.MaxLinksPerBlock}
+	// if args.MaxLinksPerBlock == 0 {
+	// 	if _possibleLinksPerBlock < int64(helpers.DefaultLinksPerBlock) {
+	// 		args.MaxLinksPerBlock = helpers.DefaultLinksPerBlock
+	// 	} else {
+	// 		args.MaxLinksPerBlock = int(_possibleLinksPerBlock) + 1
+	// 	}
+	// } else {
+	// 	if args.MaxLinksPerBlock < helpers.BlockSizeLimit {
+	// 		args.MaxLinksPerBlock = helpers.DefaultLinksPerBlock
+	// 	} else {
+	// 		args.MaxLinksPerBlock = int(_possibleLinksPerBlock) + 1
+	// 	}
+	// }
 
 	totalSize, err := GetFolderSize(args.InputFolder)
 	if err != nil {

@@ -117,8 +117,9 @@ func (dp *Dataprepper) TraverseAndCreateNodes(dir string) error {
 				_chunkedProtoNodes = append(_chunkedProtoNodes, _pn)
 
 				// Logger
-				dp.CurrentNode.Cids = append(dp.CurrentNode.Cids, _pn.Cid().String())
+				// dp.CurrentNode.Cids = append(dp.CurrentNode.Cids, _pn.Cid().String())
 			}
+			dp.CurrentNode.Cid = _protoNodes[0].Cid().String()
 
 			// cleanup
 			_protoNodes = nil
@@ -140,13 +141,32 @@ func (dp *Dataprepper) TraverseAndCreateNodes(dir string) error {
 					log.Fatal(err)
 				}
 
+				// for len(_concatedChunkedProtoNodes) > 1 {
+				// 	// Create a new slice with the type []format.Node
+				// 	var formatNodes []ipld.Node
+				// 	for _, protoNode := range _concatedChunkedProtoNodes {
+				// 		formatNodes = append(formatNodes, protoNode)
+				// 	}
+
+				// 	// Use the new slice in the ConcatFileNodes function
+				// 	_concatedChunkedProtoNodes, err = dp.UnixfsCat.ConcatFileNodes(formatNodes...)
+				// 	if err != nil {
+				// 		log.Fatal(err)
+				// 	}
+				// }
+
 				for _, _ccpn := range _concatedChunkedProtoNodes {
 					interimProtoNodes = append(interimProtoNodes, _ccpn)
 
 					dp.AddDag(_ccpn)
 					// cet cids for interims
-					dp.CurrentInterim.Cids = append(dp.CurrentInterim.Cids, _ccpn.Cid().String())
+					// dp.CurrentInterim.Cids = append(dp.CurrentInterim.Cids, _ccpn.Cid().String())
 				}
+				dp.CurrentInterim.Cid = _concatedChunkedProtoNodes[0].Cid().String()
+
+				// interimProtoNodes = append(interimProtoNodes, _concatedChunkedProtoNodes[0])
+				// dp.AddDag(_concatedChunkedProtoNodes[0])
+				// dp.CurrentInterim.Cid = _concatedChunkedProtoNodes[0].Cid().String()
 
 				_chunkedProtoNodes = []ipld.Node{}
 				_currentSize = 0
@@ -175,8 +195,9 @@ func (dp *Dataprepper) TraverseAndCreateNodes(dir string) error {
 			for _, _ccpn := range _concatedChunkedProtoNodes {
 				dp.AddDag(_ccpn)
 				interimProtoNodes = append(interimProtoNodes, _ccpn)
-				dp.CurrentInterim.Cids = append(dp.CurrentInterim.Cids, _ccpn.Cid().String())
+				// dp.CurrentInterim.Cids = append(dp.CurrentInterim.Cids, _ccpn.Cid().String())
 			}
+			dp.CurrentInterim.Cid = _concatedChunkedProtoNodes[0].Cid().String()
 
 			// Append to CurrentFolder and then Recreate Interim block
 			dp.CurrentFolder.Nodes = append(dp.CurrentFolder.Nodes, *dp.CurrentInterim)
@@ -189,12 +210,31 @@ func (dp *Dataprepper) TraverseAndCreateNodes(dir string) error {
 				log.Fatal(err)
 			}
 
-			for _, _cfn := range _concatedFileNodes {
-				dp.SetNodesWithName(_cfn, d.Name())
-				dp.AddDag(_cfn)
+			for len(_concatedFileNodes) > 1 {
+				var ipldNodes []ipld.Node
+				for _, node := range _concatedFileNodes {
+					ipldNodes = append(ipldNodes, node)
+					dp.AddDag(node)
+				}
 
-				dp.CurrentFolder.Cids = append(dp.CurrentFolder.Cids, _cfn.Cid().String())
+				_concatedFileNodes, err = dp.UnixfsCat.ConcatFileNodes(ipldNodes...)
+				if err != nil {
+					log.Fatal(err)
+				}
 			}
+
+			dp.SetNodesWithName(_concatedFileNodes[0], d.Name())
+
+			dp.AddDag(_concatedFileNodes[0])
+			// dp.CurrentFolder.Cids = append(dp.CurrentFolder.Cids, _concatedFileNodes[0].Cid().String())
+			dp.CurrentFolder.Cid = _concatedFileNodes[0].Cid().String()
+			// for _, _cfn := range _concatedFileNodes {
+			// 	dp.SetNodesWithName(_cfn, d.Name())
+			// 	dp.AddDag(_cfn)
+
+			// 	dp.CurrentFolder.Cids = append(dp.CurrentFolder.Cids, _cfn.Cid().String())
+			// }
+
 			_chunkedProtoNodes, interimProtoNodes = []ipld.Node{}, []ipld.Node{}
 		}
 		// 3. if there are leftovers files and no interims, then pack leftovers to Named
@@ -204,22 +244,49 @@ func (dp *Dataprepper) TraverseAndCreateNodes(dir string) error {
 				log.Fatal(err)
 			}
 
-			for _, _cfn := range _concatedFileNodes {
-				dp.SetNodesWithName(_cfn, d.Name())
-				dp.AddDag(_cfn)
-				dp.CurrentFolder.Cids = append(dp.CurrentFolder.Cids, _cfn.Cid().String())
+			// for _, _cfn := range _concatedFileNodes {
+			// dp.SetNodesWithName(_cfn, d.Name())
+			// dp.AddDag(_cfn)
+
+			// dp.CurrentFolder.Cids = append(dp.CurrentFolder.Cids, _cfn.Cid().String())
+			// }
+
+			for len(_concatedFileNodes) > 1 {
+				var ipldNodes []ipld.Node
+				for _, node := range _concatedFileNodes {
+					ipldNodes = append(ipldNodes, node)
+					dp.AddDag(node)
+				}
+
+				_concatedFileNodes, err = dp.UnixfsCat.ConcatFileNodes(ipldNodes...)
+				if err != nil {
+					log.Fatal(err)
+				}
 			}
+			dp.SetNodesWithName(_concatedFileNodes[0], d.Name())
+
+			dp.AddDag(_concatedFileNodes[0])
+			// dp.CurrentFolder.Cids = append(dp.CurrentFolder.Cids, _concatedFileNodes[0].Cid().String())
+			dp.CurrentFolder.Cid = _concatedFileNodes[0].Cid().String()
+
+			// for _, _cfn := range _concatedFileNodes {
+			// 	dp.SetNodesWithName(_cfn, d.Name())
+			// 	dp.AddDag(_cfn)
+			// 	dp.CurrentFolder.Cids = append(dp.CurrentFolder.Cids, _cfn.Cid().String())
+			// }
 			_chunkedProtoNodes = []ipld.Node{}
 		}
 		// 4. if there is only one file and no interims, make this file a NamedNode
 		if len(_chunkedProtoNodes) == 1 && len(interimProtoNodes) == 0 {
 			dp.SetNodesWithName(_chunkedProtoNodes[0].(*merkledag.ProtoNode), d.Name())
-			dp.CurrentFolder.Cids = append(dp.CurrentFolder.Cids, _chunkedProtoNodes[0].Cid().String())
+			// dp.CurrentFolder.Cids = append(dp.CurrentFolder.Cids, _chunkedProtoNodes[0].Cid().String())
+			dp.CurrentFolder.Cid = _chunkedProtoNodes[0].Cid().String()
 		}
 		// 5. if there is only one file and interims are present, then pack this file togethere with interims and then interims to NamedNodes
 		if len(_chunkedProtoNodes) == 1 && len(interimProtoNodes) > 0 {
 			interimProtoNodes = append(interimProtoNodes, _chunkedProtoNodes[0].(*merkledag.ProtoNode))
-			dp.CurrentInterim.Cids = append(dp.CurrentInterim.Cids, _chunkedProtoNodes[0].Cid().String())
+			// dp.CurrentInterim.Cids = append(dp.CurrentInterim.Cids, _chunkedProtoNodes[0].Cid().String())
+			dp.CurrentInterim.Cid = _chunkedProtoNodes[0].Cid().String()
 
 			dp.CurrentFolder.Nodes = append(dp.CurrentFolder.Nodes, *dp.CurrentInterim)
 
@@ -228,11 +295,36 @@ func (dp *Dataprepper) TraverseAndCreateNodes(dir string) error {
 				log.Fatal(err)
 			}
 
-			for _, _cfn := range _concatedFileNodes {
-				dp.SetNodesWithName(_cfn, d.Name())
-				dp.AddDag(_cfn)
-				dp.CurrentFolder.Cids = append(dp.CurrentFolder.Cids, _cfn.Cid().String())
+			// for _, _cfn := range _concatedFileNodes {
+			// dp.SetNodesWithName(_cfn, d.Name())
+			// dp.AddDag(_cfn)
+
+			// dp.CurrentFolder.Cids = append(dp.CurrentFolder.Cids, _cfn.Cid().String())
+			// }
+
+			for len(_concatedFileNodes) > 1 {
+				var ipldNodes []ipld.Node
+				for _, node := range _concatedFileNodes {
+					ipldNodes = append(ipldNodes, node)
+					dp.AddDag(node)
+				}
+
+				_concatedFileNodes, err = dp.UnixfsCat.ConcatFileNodes(ipldNodes...)
+				if err != nil {
+					log.Fatal(err)
+				}
 			}
+			dp.SetNodesWithName(_concatedFileNodes[0], d.Name())
+
+			dp.AddDag(_concatedFileNodes[0])
+			// dp.CurrentFolder.Cids = append(dp.CurrentFolder.Cids, _concatedFileNodes[0].Cid().String())
+			dp.CurrentFolder.Cid = _concatedFileNodes[0].Cid().String()
+
+			// for _, _cfn := range _concatedFileNodes {
+			// 	dp.SetNodesWithName(_cfn, d.Name())
+			// 	dp.AddDag(_cfn)
+			// 	dp.CurrentFolder.Cids = append(dp.CurrentFolder.Cids, _cfn.Cid().String())
+			// }
 			_chunkedProtoNodes, interimProtoNodes = []ipld.Node{}, []ipld.Node{}
 		}
 		// 6. if there are no files left and interims are present, concat them to NamedNode
@@ -242,11 +334,36 @@ func (dp *Dataprepper) TraverseAndCreateNodes(dir string) error {
 				log.Fatal(err)
 			}
 
-			for _, _cfn := range _concatedFileNodes {
-				dp.SetNodesWithName(_cfn, d.Name())
-				dp.AddDag(_cfn)
-				dp.CurrentFolder.Cids = append(dp.CurrentFolder.Cids, _cfn.Cid().String())
+			// for _, _cfn := range _concatedFileNodes {
+			// dp.SetNodesWithName(_cfn, d.Name())
+			// dp.AddDag(_cfn)
+
+			// dp.CurrentFolder.Cids = append(dp.CurrentFolder.Cids, _cfn.Cid().String())
+			// }
+
+			for len(_concatedFileNodes) > 1 {
+				var ipldNodes []ipld.Node
+				for _, node := range _concatedFileNodes {
+					ipldNodes = append(ipldNodes, node)
+					dp.AddDag(node)
+				}
+
+				_concatedFileNodes, err = dp.UnixfsCat.ConcatFileNodes(ipldNodes...)
+				if err != nil {
+					log.Fatal(err)
+				}
 			}
+			dp.SetNodesWithName(_concatedFileNodes[0], d.Name())
+
+			dp.AddDag(_concatedFileNodes[0])
+			// dp.CurrentFolder.Cids = append(dp.CurrentFolder.Cids, _concatedFileNodes[0].Cid().String())
+			dp.CurrentFolder.Cid = _concatedFileNodes[0].Cid().String()
+
+			// for _, _cfn := range _concatedFileNodes {
+			// 	dp.SetNodesWithName(_cfn, d.Name())
+			// 	dp.AddDag(_cfn)
+			// 	dp.CurrentFolder.Cids = append(dp.CurrentFolder.Cids, _cfn.Cid().String())
+			// }
 		}
 
 		dp.ParentNode.Nodes = append(dp.ParentNode.Nodes, dp.CurrentFolder)
@@ -306,7 +423,9 @@ func (dp *Dataprepper) _fileToProtoNode(file *os.File) ([]*merkledag.ProtoNode, 
 			Path: fmt.Sprintf("chunk_%v", _c),
 		}
 
-		_logger_chunk.Cids = append(_logger_chunk.Cids, node.Cid().String())
+		// _logger_chunk.Cid = node.Cid().String()
+		// _logger_chunk.Cids = append(_logger_chunk.Cids, node.Cid().String())
+		_logger_chunk.Cid = node.Cid().String()
 		_logger_chunks = append(_logger_chunks, _logger_chunk)
 
 		// dp.CurrentNode.Nodes = append(dp.CurrentNode.Nodes, _nodeLogger)
@@ -327,13 +446,21 @@ func (dp *Dataprepper) _fileToProtoNode(file *os.File) ([]*merkledag.ProtoNode, 
 			if err != nil {
 				log.Fatal(err)
 			}
+			fmt.Println("count interims_file", len(_chunkedProtoNodes))
+
+			// if len(_chunkedProtoNodes) == 1 {
+			// 	_logger_interim.Cid = _chunkedProtoNodes[0].Cid().String()
+			// } else {
+
+			// }
 
 			for _, _cpn := range _chunkedProtoNodes {
 				dp.AddDag(_cpn)
 				protoNodes = append(protoNodes, _cpn)
 
-				_logger_interim.Cids = append(_logger_interim.Cids, _cpn.Cid().String())
+				// _logger_interim.Cids = append(_logger_interim.Cids, _cpn.Cid().String())
 			}
+			_logger_interim.Cid = _chunkedProtoNodes[0].Cid().String()
 
 			_logger_interim.Nodes = _logger_chunks
 			_logger_chunks = []Node{}
@@ -367,8 +494,9 @@ func (dp *Dataprepper) _fileToProtoNode(file *os.File) ([]*merkledag.ProtoNode, 
 			dp.AddDag(_ccpn)
 			protoNodes = append(protoNodes, _ccpn)
 
-			_logger_interim.Cids = append(_logger_interim.Cids, _ccpn.Cid().String())
+			// _logger_interim.Cids = append(_logger_interim.Cids, _ccpn.Cid().String())
 		}
+		_logger_interim.Cid = _concatedChunkedProtoNodes[0].Cid().String()
 		// reset to not trigger following ifs
 		_logger_interim.Nodes = _logger_chunks
 		_logger_chunks = []Node{}
@@ -390,7 +518,7 @@ func (dp *Dataprepper) _fileToProtoNode(file *os.File) ([]*merkledag.ProtoNode, 
 
 			_logger_interim = &Node{
 				Path: fmt.Sprintf("chunk_%v", _c),
-				Cids: []string{_n.Cid().String()},
+				// Cid: []string{_n.Cid().String()},
 			}
 			_c++
 		}
