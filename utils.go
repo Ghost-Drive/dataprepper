@@ -78,6 +78,19 @@ func (ndwl *nodeWithLinks) concatFileNode(node ipld.Node) error {
 	return nil
 }
 
+func RemoveDuplicates(slice []cid.Cid) []cid.Cid {
+	keys := make(map[string]bool)
+	list := []cid.Cid{}
+
+	for _, entry := range slice {
+		if _, value := keys[entry.String()]; !value {
+			keys[entry.String()] = true
+			list = append(list, entry)
+		}
+	}
+	return list
+}
+
 func _bytesToIpldNode(fileBytes *bytes.Reader) (*merkledag.ProtoNode, error) {
 	allBytes, err := io.ReadAll(fileBytes)
 	if err != nil {

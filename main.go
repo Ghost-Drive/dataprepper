@@ -144,7 +144,6 @@ func main() {
 	// 	}
 	// }
 
-	fmt.Println(dp)
 	totalSize, err := GetFolderSize(args.InputFolder)
 	if err != nil {
 		log.Fatal(err)
@@ -206,6 +205,7 @@ func main() {
 		log.Println("Error: ", err.Error())
 		os.Remove(args.OutputFileName)
 	} else {
+		dp.Cids = RemoveDuplicates(dp.Cids)
 		log.Printf("Car file %v has been written. Blocks: %v", args.OutputFileName, len(dp.Cids))
 
 		if args.BadgerDatastore != "" {
