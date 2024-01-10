@@ -141,19 +141,22 @@ func (dp *Dataprepper) TraverseAndCreateNodes(dir string) error {
 					log.Fatal(err)
 				}
 
-				// for len(_concatedChunkedProtoNodes) > 1 {
-				// 	// Create a new slice with the type []format.Node
-				// 	var formatNodes []ipld.Node
-				// 	for _, protoNode := range _concatedChunkedProtoNodes {
-				// 		formatNodes = append(formatNodes, protoNode)
-				// 	}
+				for len(_concatedChunkedProtoNodes) > 1 {
+					// Create a new slice with the type []format.Node
+					var formatNodes []ipld.Node
+					for _, protoNode := range _concatedChunkedProtoNodes {
+						formatNodes = append(formatNodes, protoNode)
+					}
 
-				// 	// Use the new slice in the ConcatFileNodes function
-				// 	_concatedChunkedProtoNodes, err = dp.UnixfsCat.ConcatFileNodes(formatNodes...)
-				// 	if err != nil {
-				// 		log.Fatal(err)
-				// 	}
-				// }
+					// Use the new slice in the ConcatFileNodes function
+					_concatedChunkedProtoNodes, err = dp.UnixfsCat.ConcatFileNodes(formatNodes...)
+					for _, _ccpn := range _concatedChunkedProtoNodes {
+						dp.AddDag(_ccpn)
+					}
+					if err != nil {
+						log.Fatal(err)
+					}
+				}
 
 				for _, _ccpn := range _concatedChunkedProtoNodes {
 					interimProtoNodes = append(interimProtoNodes, _ccpn)
@@ -221,6 +224,9 @@ func (dp *Dataprepper) TraverseAndCreateNodes(dir string) error {
 				if err != nil {
 					log.Fatal(err)
 				}
+				for _, _ccpn := range _concatedFileNodes {
+					dp.AddDag(_ccpn)
+				}
 			}
 
 			dp.SetNodesWithName(_concatedFileNodes[0], d.Name())
@@ -261,6 +267,9 @@ func (dp *Dataprepper) TraverseAndCreateNodes(dir string) error {
 				_concatedFileNodes, err = dp.UnixfsCat.ConcatFileNodes(ipldNodes...)
 				if err != nil {
 					log.Fatal(err)
+				}
+				for _, _ccpn := range _concatedFileNodes {
+					dp.AddDag(_ccpn)
 				}
 			}
 			dp.SetNodesWithName(_concatedFileNodes[0], d.Name())
@@ -312,6 +321,9 @@ func (dp *Dataprepper) TraverseAndCreateNodes(dir string) error {
 				_concatedFileNodes, err = dp.UnixfsCat.ConcatFileNodes(ipldNodes...)
 				if err != nil {
 					log.Fatal(err)
+				}
+				for _, _ccpn := range _concatedFileNodes {
+					dp.AddDag(_ccpn)
 				}
 			}
 			dp.SetNodesWithName(_concatedFileNodes[0], d.Name())

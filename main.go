@@ -144,6 +144,7 @@ func main() {
 	// 	}
 	// }
 
+	fmt.Println(dp)
 	totalSize, err := GetFolderSize(args.InputFolder)
 	if err != nil {
 		log.Fatal(err)
