@@ -9,7 +9,7 @@ cd test_data
 totalSize=0
 targetSize=$((20 * 1024 * 1024 * 1024)) # 20GB in bytes
 folderCount=30
-fileSize=1048576 # 1MB in bytes
+fileSize=$((2 * 1024 * 1024)) # 2MB in bytes
 filesRemaining=$((targetSize / fileSize)) # Total number of files to be created
 
 for ((i=1; i<=folderCount; i++)); do
