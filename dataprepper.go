@@ -364,6 +364,9 @@ func (dp *Dataprepper) TraverseAndCreateNodes(dir string) error {
 				if err != nil {
 					log.Fatal(err)
 				}
+				for _, _ccpn := range _concatedFileNodes {
+					dp.AddDag(_ccpn)
+				}
 			}
 			dp.SetNodesWithName(_concatedFileNodes[0], d.Name())
 
@@ -530,6 +533,7 @@ func (dp *Dataprepper) _fileToProtoNode(file *os.File) ([]*merkledag.ProtoNode, 
 
 			_logger_interim = &Node{
 				Path: fmt.Sprintf("chunk_%v", _c),
+				Cid:  _n.Cid().String(),
 				// Cid: []string{_n.Cid().String()},
 			}
 			_c++
