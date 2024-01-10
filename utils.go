@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -81,12 +82,18 @@ func (ndwl *nodeWithLinks) concatFileNode(node ipld.Node) error {
 func RemoveDuplicates(slice []cid.Cid) []cid.Cid {
 	keys := make(map[string]bool)
 	list := []cid.Cid{}
+	duplicates := 0
 
 	for _, entry := range slice {
 		if _, value := keys[entry.String()]; !value {
 			keys[entry.String()] = true
 			list = append(list, entry)
+		} else {
+			duplicates++
 		}
+	}
+	if duplicates > 0 {
+		log.Printf("Found %d duplicates\n", duplicates)
 	}
 	return list
 }
