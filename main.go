@@ -10,6 +10,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"syscall"
@@ -29,6 +30,8 @@ import (
 )
 
 func main() {
+	debug.SetMemoryLimit(4 * 1024 * 1024 * 1024) // 4 GB
+
 	var args Args
 
 	currentTime := time.Now().Unix()
