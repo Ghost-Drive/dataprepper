@@ -10,7 +10,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"runtime/debug"
 	"strconv"
 	"strings"
 	"syscall"
@@ -30,8 +29,8 @@ import (
 )
 
 func main() {
-	debug.SetMemoryLimit(4 * 1024 * 1024 * 1024) // 4 GB
-	debug.SetGCPercent(50)
+	// debug.SetMemoryLimit(4 * 1024 * 1024 * 1024) // 4 GB
+	// debug.SetGCPercent(50)
 
 	var args Args
 
