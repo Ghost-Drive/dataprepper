@@ -384,6 +384,7 @@ func (dp *Dataprepper) TraverseAndCreateNodes(dir string) error {
 		dp.ParentNode.Nodes = append(dp.ParentNode.Nodes, dp.CurrentFolder)
 
 		runtime.GC()
+		debug.FreeOSMemory()
 	}
 
 	return nil
