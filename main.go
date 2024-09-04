@@ -31,6 +31,7 @@ import (
 
 func main() {
 	debug.SetMemoryLimit(4 * 1024 * 1024 * 1024) // 4 GB
+	debug.SetGCPercent(50)
 
 	var args Args
 
