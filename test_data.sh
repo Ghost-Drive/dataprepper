@@ -1,69 +1,68 @@
 #!/bin/bash
 
-if [ ! -d "test_data" ]; then
-    mkdir test_data
+if [ $# -lt 2 ]; then
+    echo "Usage: $0 <folder_name> <case_number>"
+    exit 1
 fi
 
-cd test_data
+folderName=$1
+caseNumber=$2
+
+mkdir -p "$folderName"
+cd "$folderName"
 
 totalSize=0
-targetSize=$((20 * 1024 * 1024 * 1024)) # 20GB in bytes
-folderCount=30
-fileSize=$((2 * 1024 * 1024)) # 2MB in bytes
-filesRemaining=$((targetSize / fileSize)) # Total number of files to be created
+targetSize=$((32 * 1024 * 1024 * 1024)) # 32GB in bytes
+fileSize=$((1900 * 1024)) # 1.9MB in bytes
 
-for ((i=1; i<=folderCount; i++)); do
-    folderName="folder_$i"
-    mkdir -p "$folderName"
-    
-    # Decide how many files to create in this folder
-    if [ $i -lt $folderCount ]; then
-        # Random number of files for this folder, but at least one file
-        maxFilesForThisFolder=$((filesRemaining - (folderCount - i)))
-        filesForThisFolder=$((RANDOM % maxFilesForThisFolder + 1))
-    else
-        # For the last folder, use all remaining files
-        filesForThisFolder=$filesRemaining
-    fi
+case $caseNumber in
+    1)
+        folderCount=30
+        totalFiles=$((targetSize / fileSize))
 
-    for ((j=1; j<=filesForThisFolder; j++)); do
-        filename="$(date +%s%N).txt"
-        dd if=/dev/urandom of="${folderName}/${filename}" bs=${fileSize} count=1 status=none
-        totalSize=$((totalSize + fileSize))
-    done
+        # Create folders
+        for ((i=1; i<=folderCount; i++)); do
+            mkdir -p "folder_$i"
+        done
 
-    # Update the remaining file count
-    filesRemaining=$((filesRemaining - filesForThisFolder))
-done
+        # Distribute files randomly
+        while [ $totalSize -lt $targetSize ]; do
+            randomFolder="folder_$((RANDOM % folderCount + 1))"
+            randomSuffix=$(printf "%05d" $((RANDOM % 100000)))
+            filename="0000${randomSuffix}"
+            dd if=/dev/urandom of="${randomFolder}/${filename}" bs=${fileSize} count=1 status=none
+            totalSize=$((totalSize + fileSize))
+        done
 
-echo "Total size created: $totalSize bytes"
+        echo "Total size created: $totalSize bytes"
 
+        # Print file distribution
+        echo "File distribution:"
+        for ((i=1; i<=folderCount; i++)); do
+            folderName="folder_$i"
+            fileCount=$(ls -1 "$folderName" | wc -l)
+            echo "$folderName: $fileCount files"
+        done
+        ;;
+    2)
+        folderCount=$((targetSize / fileSize))
 
+        # Create folders and files
+        for ((i=1; i<=folderCount; i++)); do
+            mkdir -p "folder_$i"
+            dd if=/dev/urandom of="folder_$i/file" bs=${fileSize} count=1 status=none
+            totalSize=$((totalSize + fileSize))
+        done
 
-# Creating directories A, B, C, D, and E
-# for dir in A B C D E; do
-#     mkdir -p "$dir"
-
-#     # Generating a random number between 5 and 10 for file count
-#     # Set the total size for each directory to 100MB
-#     dirSize=104857600 # 100MB in bytes
-
-#     # Initialize the current size to 0
-#     currentSize=0
-
-#     while ((currentSize < dirSize)); do
-#         # Set file size to 1MB
-#         fileSize=1048576 # 1MB in bytes
-
-#         # Creating a dummy file of 1MB size
-#         dd if=/dev/urandom of="${dir}/$(date +%s%N).txt" bs=${fileSize} count=1 status=none
-#         # head -c "${fileSize}" /dev/urandom | base64 > "${dir}/$(date +%s%N).txt"
-
-#         # Update the current size
-#         currentSize=$((currentSize + fileSize))
-#     done
-# done
+        echo "Total size created: $totalSize bytes"
+        echo "File distribution: $folderCount folders, each containing 1 file of size $fileSize bytes"
+        ;;
+    *)
+        echo "Invalid case number. Please use 1 or 2."
+        exit 1
+        ;;
+esac
 
 cd ..
 
-echo "Folders and files created successfully."
+echo "Folders and files created successfully in $folderName."

@@ -1,5 +1,6 @@
 # IDE
 .idea
+.vscode
 
 # Binaries for programs and plugins
 *.exe
@@ -18,14 +19,15 @@
 # vendor/
 
 nodes
-test_data
+test_*
 .cursorignore
 tt.sh
 
-car
+# car
 datastore
 
 *.car
 *.txt
 *.json
 *.jsonl
+*.tar.gz

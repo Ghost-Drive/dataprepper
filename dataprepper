@@ -4,9 +4,8 @@ go build -o _dataprepper
 chmod +x _dataprepper
 ./_dataprepper "$@"
 
-output_file=$(echo "$@" | grep -oP '(?<=-o\s)[^\s]+' | tail -1)
-data_folder=$(echo "$@" | grep -oP '(?<=-d\s)[^\s]+' | tail -1)
+output_file=$(echo "$@" | grep -o -- '-o [^ ]*' | cut -d ' ' -f2 | tail -1)
+data_folder=$(echo "$@" | grep -o -- '-d [^ ]*' | cut -d ' ' -f2 | tail -1)
 trap '[[ -n "$output_file" ]] && rm -f "$output_file"; [[ -n "$data_folder" ]] && rm -rf "$data_folder" && rm _datprepper; exit' SIGTERM
 
 rm _dataprepper
-

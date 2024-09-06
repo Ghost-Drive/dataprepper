@@ -15,6 +15,7 @@ import (
 
 	ipld "github.com/ipfs/go-ipld-format"
 	"github.com/ipfs/go-merkledag"
+	"golang.org/x/term"
 )
 
 func (dp *Dataprepper) SetRoot(dir string) {
@@ -29,11 +30,35 @@ func (dp *Dataprepper) ConcatFiles(protoNodes []*merkledag.ProtoNode, setNodeWit
 
 }
 
+func bToMb(b uint64) uint64 {
+	return b / 1024 / 1024
+}
+
 func (dp *Dataprepper) SetNodesWithName(protoNode *merkledag.ProtoNode, nodeName string) {
+	// Append to NodesWithName
+	// Append to NodesWithName
 	dp.NodesWithName = append(dp.NodesWithName, NodeWithName{
 		node: protoNode,
 		name: nodeName,
 	})
+
+	// Dump NodesWithName to filesystem to free up memory
+	// if len(dp.NodesWithName) >= 1000 { // Adjust this threshold as needed
+	// 	tempFile, err := os.CreateTemp("", "nodesWithName_*.tmp")
+	// 	if err != nil {
+	// 		log.Printf("Error creating temp file: %v", err)
+	// 	} else {
+	// 		defer tempFile.Close()
+	// 		encoder := json.NewEncoder(tempFile)
+	// 		for _, nwn := range dp.NodesWithName {
+	// 			if err := encoder.Encode(nwn); err != nil {
+	// 				log.Printf("Error encoding NodeWithName: %v", err)
+	// 			}
+	// 		}
+	// 		// Clear the slice after dumping
+	// 		dp.NodesWithName = dp.NodesWithName[:0]
+	// 	}
+	// }
 }
 
 func (dp *Dataprepper) AddDag(protoNode *merkledag.ProtoNode) {
@@ -130,7 +155,7 @@ func (dp *Dataprepper) TraverseAndCreateNodes(dir string) error {
 				// if there won't be any need for interims then just add nodes to current folder
 				dp.CurrentFolder.Nodes = append(dp.CurrentFolder.Nodes, dp.CurrentNode)
 			} else {
-				// append dp.CurrentNode to to currentinterim
+				// append dp.CurrentNode to currentinterim
 				dp.CurrentInterim.Nodes = append(dp.CurrentInterim.Nodes, dp.CurrentNode)
 			}
 
@@ -187,9 +212,11 @@ func (dp *Dataprepper) TraverseAndCreateNodes(dir string) error {
 
 			dp.DisplayProgress(true)
 		}
+		// Print recently collected heap statistics
 		// fmt.Println(len(_chunkedProtoNodes), len(interimProtoNodes))
 		// 2. if there are leftovers files and there interims present, then pack leftovers to interim
 		if len(_chunkedProtoNodes) > 1 && len(interimProtoNodes) > 0 {
+			// fmt.Println("CASE 1 Concatenating interims")
 			_concatedChunkedProtoNodes, err := dp.UnixfsCat.ConcatFileNodes(_chunkedProtoNodes...)
 			if err != nil {
 				log.Fatal(err)
@@ -245,6 +272,7 @@ func (dp *Dataprepper) TraverseAndCreateNodes(dir string) error {
 		}
 		// 3. if there are leftovers files and no interims, then pack leftovers to Named
 		if len(_chunkedProtoNodes) > 1 && len(interimProtoNodes) == 0 {
+			// fmt.Println("CASE 2 Concatenating interims")
 			_concatedFileNodes, err := dp.UnixfsCat.ConcatFileNodes(_chunkedProtoNodes...)
 			if err != nil {
 				log.Fatal(err)
@@ -287,12 +315,21 @@ func (dp *Dataprepper) TraverseAndCreateNodes(dir string) error {
 		}
 		// 4. if there is only one file and no interims, make this file a NamedNode
 		if len(_chunkedProtoNodes) == 1 && len(interimProtoNodes) == 0 {
-			dp.SetNodesWithName(_chunkedProtoNodes[0].(*merkledag.ProtoNode), d.Name())
+			// fmt.Println("CASE 3 Concatenating interims")
+			_concatedFileNodes, err := dp.UnixfsCat.ConcatFileNodes(_chunkedProtoNodes...)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			dp.SetNodesWithName(_concatedFileNodes[0], d.Name())
+			dp.AddDag(_concatedFileNodes[0])
 			// dp.CurrentFolder.Cids = append(dp.CurrentFolder.Cids, _chunkedProtoNodes[0].Cid().String())
-			dp.CurrentFolder.Cid = _chunkedProtoNodes[0].Cid().String()
+			dp.CurrentFolder.Cid = _concatedFileNodes[0].Cid().String()
+			_chunkedProtoNodes = []ipld.Node{}
 		}
 		// 5. if there is only one file and interims are present, then pack this file togethere with interims and then interims to NamedNodes
 		if len(_chunkedProtoNodes) == 1 && len(interimProtoNodes) > 0 {
+			// fmt.Println("CASE 4 Concatenating interims")
 			interimProtoNodes = append(interimProtoNodes, _chunkedProtoNodes[0].(*merkledag.ProtoNode))
 			// dp.CurrentInterim.Cids = append(dp.CurrentInterim.Cids, _chunkedProtoNodes[0].Cid().String())
 			dp.CurrentInterim.Cid = _chunkedProtoNodes[0].Cid().String()
@@ -341,6 +378,7 @@ func (dp *Dataprepper) TraverseAndCreateNodes(dir string) error {
 		}
 		// 6. if there are no files left and interims are present, concat them to NamedNode
 		if len(_chunkedProtoNodes) == 0 && len(interimProtoNodes) > 0 {
+			// fmt.Println("CASE 5 Concatenating interims")
 			_concatedFileNodes, err := dp.UnixfsCat.ConcatFileNodes(interimProtoNodes...)
 			if err != nil {
 				log.Fatal(err)
@@ -462,7 +500,7 @@ func (dp *Dataprepper) _fileToProtoNode(file *os.File) ([]*merkledag.ProtoNode, 
 			if err != nil {
 				log.Fatal(err)
 			}
-			fmt.Println("count interims_file", len(_chunkedProtoNodes))
+			// fmt.Println("count interims_file", len(_chunkedProtoNodes))
 
 			// if len(_chunkedProtoNodes) == 1 {
 			// 	_logger_interim.Cid = _chunkedProtoNodes[0].Cid().String()
@@ -558,11 +596,34 @@ func (dp *Dataprepper) FileToProtoNode(filePath string) ([]*merkledag.ProtoNode,
 
 func (dp *Dataprepper) DisplayProgress(commit bool) {
 	percent := (float64(dp.Progress.ProcessedSize) / float64(dp.Progress.TotalSize)) * 100
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
 
-	progressStr := fmt.Sprintf("\rProcessing %v: %.2f%% ", dp.Progress.CurrentFile, percent)
-	padding := 100 - len(progressStr)
-	if padding > 0 {
-		progressStr += strings.Repeat(" ", padding)
+	allocMB := bToMb(m.Alloc)
+
+	// Truncate the current file path if it's too long
+	currentFile := dp.Progress.CurrentFile
+	if len(currentFile) > 50 {
+		currentFile = "..." + currentFile[len(currentFile)-47:]
+	}
+
+	progressStr := fmt.Sprintf("\rProcessing %v: %.2f%% | Alloc: %v MiB | NumGC: %v",
+		currentFile, percent, allocMB, m.NumGC)
+
+	// Calculate available terminal width
+	termWidth, _, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil {
+		termWidth = 120 // Default width if unable to get terminal size
+	}
+
+	// Truncate or pad the progress string to fit the terminal width
+	if len(progressStr) > termWidth {
+		progressStr = progressStr[:termWidth-3] + "..."
+	} else {
+		padding := termWidth - len(progressStr)
+		if padding > 0 {
+			progressStr += strings.Repeat(" ", padding)
+		}
 	}
 
 	fmt.Print(progressStr)

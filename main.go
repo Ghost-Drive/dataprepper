@@ -186,6 +186,8 @@ func main() {
 	dp.DagService = merkledag.NewDAGService(blockService)
 
 	fmt.Println("Starting file processing.")
+	startTime := time.Now()
+
 	if err := dp.TraverseAndCreateNodes(args.InputFolder); err != nil {
 		log.Fatal(err)
 	}
@@ -197,6 +199,9 @@ func main() {
 	}
 
 	dp.AddDag(parentNode)
+
+	executionTime := time.Since(startTime)
+	log.Printf("Execution time: %v", executionTime)
 
 	fmt.Printf("\nWriting .car file %v, CID: %v. Please wait...\n", args.OutputFileName, parentNode.Cid().String())
 
