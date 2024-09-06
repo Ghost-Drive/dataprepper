@@ -12,7 +12,7 @@ mkdir -p "$folderName"
 cd "$folderName"
 
 totalSize=0
-targetSize=$((32 * 1024 * 1024 * 1024)) # 32GB in bytes
+targetSize=$((6 * 1024 * 1024 * 1024)) # 6GB in bytes
 fileSize=$((1900 * 1024)) # 1.9MB in bytes
 
 case $caseNumber in
